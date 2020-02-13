@@ -1,12 +1,25 @@
 import moment from 'moment';
 
-import { 
-	AcceptingApplications,
-  ReviewPeriod,
-  ActiveOpeningStageVariant, ActiveOpeningStageKeys, 
+import { Option, u128 } from '@polkadot/types'
+import { Balance } from '@polkadot/types/interfaces'
+
+import {
+  AcceptingApplications, ReviewPeriod,
+  WaitingToBeingOpeningStageVariant,
+  ActiveOpeningStageVariant, ActiveOpeningStageKeys,
   Opening,
-  OpeningStageKeys, 
+  OpeningStageKeys,
+  Deactivated, OpeningDeactivationCauseKeys,
+  StakingPolicy,
+  StakingAmountLimitMode, StakingAmountLimitModeKeys,
 } from "@joystream/types/hiring"
+
+import {
+  StakeRequirement,
+  ApplicationStakeRequirement,
+  RoleStakeRequirement,
+  StakeType,
+} from './StakeRequirement'
 
 export enum OpeningState {
   WaitingToBegin = 0,
@@ -33,12 +46,19 @@ export interface IBlockQueryer {
 
 export async function classifyOpeningStage(queryer: IBlockQueryer, opening: Opening): Promise<OpeningStageClassification> {
   switch (opening.stage.type) {
+    case OpeningStageKeys.WaitingToBegin:
+      return classifyWaitingToBeginStage(
+        opening,
+        queryer,
+        opening.stage.value as WaitingToBeingOpeningStageVariant,
+      )
+
     case OpeningStageKeys.Active:
       return classifyActiveOpeningStage(
         opening,
         queryer,
         opening.stage.value as ActiveOpeningStageVariant,
-    )
+      )
   }
 
   throw new Error('Unknown stage type: ' + opening.stage.type)
@@ -46,7 +66,7 @@ export async function classifyOpeningStage(queryer: IBlockQueryer, opening: Open
 
 async function classifyActiveOpeningStage(
   opening: Opening,
-  queryer: IBlockQueryer, 
+  queryer: IBlockQueryer,
   stage: ActiveOpeningStageVariant,
 ): Promise<OpeningStageClassification> {
 
@@ -55,7 +75,7 @@ async function classifyActiveOpeningStage(
       return classifyActiveOpeningStageAcceptingApplications(
         queryer,
         stage.stage.value as AcceptingApplications,
-    )
+      )
 
     case ActiveOpeningStageKeys.ReviewPeriod:
       return classifyActiveOpeningStageReviewPeriod(
@@ -63,13 +83,33 @@ async function classifyActiveOpeningStage(
         queryer,
         stage.stage.value as ReviewPeriod,
       )
+
+    case ActiveOpeningStageKeys.Deactivated:
+      return classifyActiveOpeningStageDeactivated(
+        queryer,
+        stage.stage.value as Deactivated,
+      )
   }
 
   throw new Error('Unknown active opening stage: ' + stage.stage.type)
 }
 
+async function classifyWaitingToBeginStage(
+  opening: Opening,
+  queryer: IBlockQueryer,
+  stage: WaitingToBeingOpeningStageVariant,
+): Promise<OpeningStageClassification> {
+  const blockNumber = opening.created.toNumber()
+  return {
+    state: OpeningState.WaitingToBegin,
+    starting_block: blockNumber,
+    starting_block_hash: await queryer.blockHash(blockNumber),
+    starting_time: await queryer.blockTimestamp(blockNumber),
+  }
+}
+
 async function classifyActiveOpeningStageAcceptingApplications(
-  queryer: IBlockQueryer, 
+  queryer: IBlockQueryer,
   stage: AcceptingApplications,
 ): Promise<OpeningStageClassification> {
   const blockNumber = stage.started_accepting_applicants_at_block.toNumber()
@@ -83,7 +123,7 @@ async function classifyActiveOpeningStageAcceptingApplications(
 
 async function classifyActiveOpeningStageReviewPeriod(
   opening: Opening,
-  queryer: IBlockQueryer, 
+  queryer: IBlockQueryer,
   stage: ReviewPeriod,
 ): Promise<OpeningStageClassification> {
   const blockNumber = stage.started_review_period_at_block.toNumber()
@@ -92,7 +132,7 @@ async function classifyActiveOpeningStageReviewPeriod(
     queryer.blockTimestamp(blockNumber),
     queryer.expectedBlockTime(),
   ])
-  const endDate = moment(startDate).add(maxReviewLengthInBlocks*blockTime, 's')
+  const endDate = moment(startDate).add(maxReviewLengthInBlocks * blockTime, 's')
 
   return {
     state: OpeningState.InReview,
@@ -104,3 +144,90 @@ async function classifyActiveOpeningStageReviewPeriod(
   }
 }
 
+async function classifyActiveOpeningStageDeactivated(
+  queryer: IBlockQueryer,
+  stage: Deactivated,
+): Promise<OpeningStageClassification> {
+  const blockNumber = stage.deactivated_at_block.toNumber()
+  const [startDate] = await Promise.all([
+    queryer.blockTimestamp(blockNumber),
+  ])
+
+  let state: OpeningState
+
+  switch (stage.cause.type) {
+    case OpeningDeactivationCauseKeys.CancelledBeforeActivation:
+    case OpeningDeactivationCauseKeys.CancelledAcceptingApplications:
+    case OpeningDeactivationCauseKeys.CancelledInReviewPeriod:
+    case OpeningDeactivationCauseKeys.ReviewPeriodExpired:
+      state = OpeningState.Cancelled
+      break
+
+    case OpeningDeactivationCauseKeys.Filled:
+      state = OpeningState.Complete
+      break
+
+    default:
+      state = OpeningState.Complete
+      break
+  }
+
+  return {
+    state: state,
+    starting_block: blockNumber,
+    starting_block_hash: await queryer.blockHash(blockNumber),
+    starting_time: startDate,
+  }
+}
+
+export type StakeRequirementSetClassification = {
+  application: ApplicationStakeRequirement
+  role: RoleStakeRequirement
+}
+
+interface StakeRequirementConstructor<T extends StakeRequirement> {
+  new(hard: Balance, stakeType?: StakeType): T
+}
+
+export function classifyOpeningStakes(opening: Opening): StakeRequirementSetClassification {
+  return {
+    application: classifyStakeRequirement<ApplicationStakeRequirement>(
+      ApplicationStakeRequirement,
+      opening.application_staking_policy,
+    ),
+    role: classifyStakeRequirement<RoleStakeRequirement>(
+      RoleStakeRequirement,
+      opening.role_staking_policy,
+    ),
+  }
+}
+
+function classifyStakeRequirement<T extends StakeRequirement>(
+  constructor: StakeRequirementConstructor<T>,
+  option: Option<StakingPolicy>,
+): T {
+
+  if (option.isNone) {
+    return new constructor(new u128(0))
+  }
+
+  const policy = option.unwrap()
+
+  return new constructor(
+    policy.amount,
+    classifyStakeType(policy.amount_mode),
+  )
+}
+
+
+function classifyStakeType(mode: StakingAmountLimitMode): StakeType {
+  switch (mode.type) {
+    case StakingAmountLimitModeKeys.AtLeast:
+      return StakeType.AtLeast
+
+    case StakingAmountLimitModeKeys.Exact:
+      return StakeType.Fixed
+  }
+
+  throw new Error("Unknown stake type: " + mode.type)
+}

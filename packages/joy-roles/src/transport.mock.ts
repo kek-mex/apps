@@ -15,7 +15,7 @@ import {
   ApplicationRationingPolicy,
   StakingPolicy,
 } from "@joystream/types/hiring"
-import { Profile } from '@joystream/types/members';
+import { IProfile } from '@joystream/types/members';
 
 import { WorkingGroupMembership, StorageAndDistributionMembership } from "./tabs/WorkingGroup"
 import { WorkingGroupOpening } from "./tabs/Opportunities"
@@ -115,7 +115,7 @@ export class Transport extends TransportBase implements ITransport {
         memos: new Map<string, Text>([
           ['5DfJWGbBAH8hLAg8rcRYZW5BEZbE4BJeCQKoxUeqoyewLSew', new Text("This is a memo")]
         ]),
-        profiles: new Map<number, Profile>([
+        profiles: new Map<number, IProfile>([
           [1, mockProfile("bwhm0")],
           [2, mockProfile(
             "benholdencrowther",
@@ -196,6 +196,7 @@ export class Transport extends TransportBase implements ITransport {
           },
           meta: {
             id: "1",
+            group: "somegroup",
           },
           stage: {
             state: OpeningState.AcceptingApplications,
@@ -291,6 +292,7 @@ export class Transport extends TransportBase implements ITransport {
         },
         meta: {
           id: "1",
+          group: "group-name",
         },
         stage: {
           state: OpeningState.AcceptingApplications,
@@ -317,7 +319,7 @@ export class Transport extends TransportBase implements ITransport {
     )
   }
 
-  openingApplicationRanks(openingId: string): Promise<Balance[]> {
+  openingApplicationRanks(openingId: number): Promise<Balance[]> {
     const slots: Balance[] = []
     for (let i = 0; i < 20; i++) {
       slots.push(new u128((i * 100) + 10 + i + 1))
@@ -328,6 +330,14 @@ export class Transport extends TransportBase implements ITransport {
 
   expectedBlockTime(): Promise<number> {
     return this.promise<number>(6)
+  }
+
+  blockHash(height: number): Promise<string> {
+    return this.promise<string>('somehash')
+  }
+
+  blockTimestamp(height: number): Promise<Date> {
+    return this.promise<Date>(new Date())
   }
 
   transactionFee(): Promise<Balance> {
@@ -372,6 +382,7 @@ export class Transport extends TransportBase implements ITransport {
             },
             meta: {
               id: "1",
+              group: "group-name",
             },
             stage: {
               state: OpeningState.AcceptingApplications,
@@ -477,6 +488,16 @@ export class Transport extends TransportBase implements ITransport {
       )
     }
     )
+  }
+
+  async applyToCuratorOpening(
+    id: number,
+    roleAccountName: string,
+    sourceAccount: string,
+    appStake: Balance,
+    roleStake: Balance,
+    applicationText: string): Promise<number> {
+      return 0
   }
 }
 

@@ -1,13 +1,13 @@
-import React, {useContext} from 'react';
+import React, { useContext, useState } from 'react';
 
 import { ApiContext } from '@polkadot/react-api';
 import { AppProps, I18nProps } from '@polkadot/react-components/types';
 import { ApiProps } from '@polkadot/react-api/types';
-import { SubjectInfo } from '@polkadot/ui-keyring/observable/types';
 
 import { Route, Switch, RouteComponentProps } from 'react-router';
 import Tabs from '@polkadot/react-components/Tabs';
 import { withMulti } from '@polkadot/react-api/index';
+import QueueContext from '@polkadot/react-components/Status/Context';
 
 import { ViewComponent } from '@polkadot/joy-utils/index'
 
@@ -25,9 +25,7 @@ import './index.sass';
 
 import translate from './translate';
 
-type Props = AppProps & ApiProps & I18nProps & {
-  allAccounts?: SubjectInfo,
-};
+type Props = AppProps & ApiProps & I18nProps
 
 export const App: React.FC<Props> = (props: Props) => {
   const { t } = props
@@ -46,24 +44,26 @@ export const App: React.FC<Props> = (props: Props) => {
       name: 'my-roles',
       text: t('My roles')
     },
-   ]
+  ]
 
 
   const { api } = useContext(ApiContext);
-  const transport = new Transport(api)
+  const { queueExtrinsic } = useContext(QueueContext)
+  const transport = new Transport(api, queueExtrinsic)
 
   const mockTransport = new MockTransport()
-  const wgCtrl = new WorkingGroupsController(mockTransport)
-  const oppCtrl = new OpportunityController(mockTransport)
-  const oppsCtrl = new OpportunitiesController(mockTransport)
-  const applyCtrl = new ApplyController(mockTransport)
+
+  const wgCtrl = new WorkingGroupsController(transport)
+  const oppCtrl = new OpportunityController(transport)
+  const oppsCtrl = new OpportunitiesController(transport)
+  const [applyCtrl] = useState(new ApplyController(transport))
   const myRolesCtrl = new MyRolesController(mockTransport)
   const adminCtrl = new AdminController(transport, api)
 
-   // FIXME! Move to transport
   const { basePath } = props
+
   return (
-    <main className='actors--App'>
+    <main className='roles--App'>
       <header>
         <Tabs
           basePath={basePath}
@@ -71,10 +71,10 @@ export const App: React.FC<Props> = (props: Props) => {
         />
       </header>
       <Switch>
-        <Route path={`${basePath}/opportunities/:id`} render={(props) => renderViewComponent(OpportunityView(oppCtrl), props)} />
+        <Route path={`${basePath}/opportunities/:group/:id/apply`} render={(props) => renderViewComponent(ApplyView(applyCtrl), props)} />
+        <Route path={`${basePath}/opportunities/:group/:id`} render={(props) => renderViewComponent(OpportunityView(oppCtrl), props)} />
         <Route path={`${basePath}/opportunities`} render={() => renderViewComponent(OpportunitiesView(oppsCtrl))} />
         <Route path={`${basePath}/my-roles`} render={() => renderViewComponent(MyRolesView(myRolesCtrl))} />
-        <Route path={`${basePath}/apply/:id`} render={(props) => renderViewComponent(ApplyView(applyCtrl), props)} />
         <Route path={`${basePath}/admin`} render={() => renderViewComponent(AdminView(adminCtrl))} />
         <Route render={() => renderViewComponent(WorkingGroupsView(wgCtrl))} />
       </Switch>

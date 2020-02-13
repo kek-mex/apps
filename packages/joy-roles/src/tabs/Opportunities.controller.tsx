@@ -21,23 +21,22 @@ export class OpportunitiesController extends Controller<State, ITransport> {
     this.getBlocktime()
   }
 
-  getOpportunities() {
-    this.transport.currentOpportunities().then(value => {
-      this.state.opportunities = value
-      this.dispatch()
-    })
+  async getOpportunities() {
+    this.state.opportunities = await this.transport.currentOpportunities()
+    this.dispatch()
   }
 
-  getBlocktime() {
-    this.transport.expectedBlockTime().then(value => {
-      this.state.blockTime = value
-      this.dispatch()
-    })
+  async getBlocktime() {
+    this.state.blockTime = await this.transport.expectedBlockTime()
+    this.dispatch()
   }
 }
 
 export const OpportunitiesView = View<OpportunitiesController, State>(
   (state) => (
-    <OpeningsView openings={state.opportunities} block_time_in_seconds={state.blockTime} />
+    <OpeningsView
+      openings={state.opportunities}
+      block_time_in_seconds={state.blockTime}
+    />
   )
 )
