@@ -1,6 +1,6 @@
 import React from 'react';
-import { ChannelEntity } from '../entities/MusicChannelEntity';
 import { BgImg } from '../common/BgImg';
+import { ChannelEntity } from '../entities/ChannelEntity';
 import { ChannelPreview } from './ChannelPreview';
 
 type Props = {
@@ -12,7 +12,7 @@ export function ChannelHeader (props: Props) {
 
   return (
     <div className='ChannelHeader'>
-      <BgImg className='ChannelCover' url={channel.coverUrl} />
+      <BgImg className='ChannelCover' url={channel.banner} />
       <ChannelPreview channel={channel} size='big' />
     </div>
   );

@@ -3,13 +3,14 @@ import { Button, Tab } from 'semantic-ui-react';
 import { Form, withFormik } from 'formik';
 import { History } from 'history';
 
-import TxButton from '@polkadot/joy-utils/TxButton';
+import TxButton, { OnTxButtonClick } from '@polkadot/joy-utils/TxButton';
 import { ContentId } from '@joystream/types/media';
 import { onImageError } from '../utils';
 import { VideoValidationSchema, VideoType, VideoClass as Fields, VideoFormValues, VideoToFormValues } from '../schemas/video/Video';
-import { MediaFormProps, withMediaForm } from '../common/MediaForms';
+import { MediaFormProps, withMediaForm, datePlaceholder } from '../common/MediaForms';
 import EntityId from '@joystream/types/versioned-store/EntityId';
 import { MediaDropdownOptions } from '../common/MediaDropdownOptions';
+import { FormTabs } from '../common/FormTabs';
 
 export type OuterProps = {
   history?: History,
@@ -41,6 +42,7 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
 
     values,
     dirty,
+    errors,
     isValid,
     isSubmitting,
     resetForm
@@ -60,22 +62,53 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
     <MediaText field={Fields.title} {...props} />
     <MediaText field={Fields.thumbnail} {...props} />
     <MediaText field={Fields.description} textarea {...props} />
+    <MediaDropdown field={Fields.language} options={opts.languageOptions} {...props} />
+    <MediaText field={Fields.firstReleased} placeholder={datePlaceholder} {...props} />
+    <MediaText field={Fields.explicit} {...props} />
+    <MediaDropdown field={Fields.license} options={opts.contentLicenseOptions} {...props} />
     <MediaDropdown field={Fields.publicationStatus} options={opts.publicationStatusOptions} {...props} />
   </Tab.Pane>
 
   const additionalTab = () => <Tab.Pane as='div'>
     <MediaDropdown field={Fields.category} options={opts.videoCategoryOptions} {...props} />
-    <MediaDropdown field={Fields.language} options={opts.languageOptions} {...props} />
-    <MediaDropdown field={Fields.license} options={opts.contentLicenseOptions} {...props} />
+    <MediaText field={Fields.link} {...props} />
+    <MediaText field={Fields.attribution} {...props} />
   </Tab.Pane>
 
-  const tabs = () => <Tab
-    menu={{ secondary: true, pointing: true, color: 'blue' }}
-    panes={[
-      { menuItem: 'Basic info', render: basicInfoTab },
-      { menuItem: 'Additional', render: additionalTab },
-    ]}
-  />;
+  const tabs = <FormTabs errors={errors} panes={[
+    {
+      id: 'Basic info',
+      render: basicInfoTab,
+      fields: [
+        Fields.title,
+        Fields.thumbnail,
+        Fields.description,
+        Fields.language,
+        Fields.firstReleased,
+        Fields.explicit,
+        Fields.license,
+        Fields.publicationStatus,
+      ]
+    },
+    {
+      id: 'Additional',
+      render: additionalTab,
+      fields: [
+        Fields.category,
+        Fields.link,
+        Fields.attribution,
+      ]
+    }
+  ]} />;
+
+  const newOnSubmit: OnTxButtonClick = (sendTx: () => void) => {
+    
+    // TODO Switch to the first tab with errors if any
+    
+    if (onSubmit) {
+      onSubmit(sendTx);
+    }
+  }
 
   const MainButton = () =>
     <TxButton
@@ -91,7 +124,7 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
         ? 'dataDirectory.addMetadata'
         : 'dataDirectory.updateMetadata'
       }
-      onClick={onSubmit}
+      onClick={newOnSubmit}
       txFailedCb={onTxFailed}
       txSuccessCb={onTxSuccess}
     />
@@ -103,9 +136,7 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
 
     <Form className='ui form JoyForm EditMetaForm'>
       
-      {tabs()}
-
-      {/* TODO add metadata status dropdown: Draft, Published */}
+      {tabs}
 
       <LabelledField style={{ marginTop: '1rem' }} {...props}>
         <MainButton />

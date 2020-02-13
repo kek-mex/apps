@@ -7,8 +7,8 @@ import TxButton from '@polkadot/joy-utils/TxButton';
 import { onImageError } from '../utils';
 import { withMediaForm, MediaFormProps } from '../common/MediaForms';
 import { ChannelType, ChannelClass as Fields, ChannelValidationSchema, ChannelFormValues, ChannelToFormValues } from '../schemas/channel/Channel';
-import { ChannelId } from './ChannelId';
 import { MediaDropdownOptions } from '../common/MediaDropdownOptions';
+import { ChannelId } from '@joystream/types/content-working-group';
 
 export type OuterProps = {
   history?: History,
@@ -63,6 +63,8 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
     <MediaText field={Fields.avatar} {...props} />
     <MediaText field={Fields.banner} {...props} />
     <MediaText field={Fields.description} textarea {...props} />
+
+    {/* TODO Use Channel Specific options for publicationStatus */}
     <MediaDropdown field={Fields.publicationStatus} options={opts.publicationStatusOptions} {...props} />
   </>;
 
@@ -72,8 +74,8 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
       size='large'
       isDisabled={!dirty || isSubmitting}
       label={isNew
-        ? 'Publish'
-        : 'Update'
+        ? 'Create channel'
+        : 'Update channel'
       }
       params={buildTxParams()}
       tx={isNew
@@ -93,8 +95,6 @@ const InnerForm = (props: MediaFormProps<OuterProps, FormValues>) => {
     <Form className='ui form JoyForm EditMetaForm'>
       
       {formFields()}
-
-      {/* TODO add metadata status dropdown: Draft, Published */}
 
       <LabelledField style={{ marginTop: '1rem' }} {...props}>
         <MainButton />
